@@ -1,102 +1,143 @@
 "use client";
+import { ArrowLeft, Plus, BrainCircuit, Play, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, RotateCw, X, Check } from "lucide-react";
-import Link from "next/link";
+import { supabase } from "@/lib/supabase"; 
+import StudyMode from "./study"; // <-- CHANGE: Import StudyMode
 
-export default function StudyMode() {
-  const [isFlipped, setIsFlipped] = useState(false);
+export default function DeckPage() {
+  const params = useParams();
+  const router = useRouter();
+  const deckId = params.id;
+
+  const [cards, setCards] = useState<any[]>([]);
+  const [deckName, setDeckName] = useState("Loading...");
+  const [isStudyModeOpen, setIsStudyModeOpen] = useState(false); // <-- CHANGE: Add state
+
+  useEffect(() => {
+    async function loadDeckAndCards() {
+      // Fetch the deck name
+      const { data: deckData } = await supabase
+        .from("flashcards")
+        .select("title")
+        .eq("id", deckId)
+        .single();
+      
+      if (deckData) setDeckName(deckData.title);
+
+      // Fetch the cards for this deck
+      const { data: cardsData } = await supabase
+        .from("cards")
+        .select("*")
+        .eq("deck_id", deckId)
+        .order("created_at", { ascending: true });
+
+      if (cardsData) setCards(cardsData);
+    }
+    
+    if (deckId) loadDeckAndCards();
+  }, [deckId]);
+
+  const handleAddCard = async () => {
+    const front = prompt("What is the question/front of the card?");
+    if (!front) return;
+    
+    const back = prompt("What is the answer/back of the card?");
+    if (!back) return;
+
+    const newCard = { deck_id: deckId, front, back };
+
+    const { data, error } = await supabase
+      .from("cards")
+      .insert([newCard])
+      .select();
+
+    if (!error && data) {
+      setCards([...cards, data[0]]);
+    }
+  };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col relative overflow-y-auto p-8">
       
-      {/* Study Header */}
-      <header className="flex items-center justify-between border-b border-white/5 bg-zinc-950/50 px-8 py-4 backdrop-blur-md">
+      <header className="mb-10 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/flashcards" className="text-zinc-500 hover:text-white transition-colors">
+          <button 
+            onClick={() => router.push('/flashcards')}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors"
+          >
             <ArrowLeft size={20} />
-          </Link>
+          </button>
           <div>
-            <h1 className="text-lg font-medium text-white">Database Systems</h1>
-            <p className="text-xs text-zinc-500">Card 12 of 42</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">{deckName}</h1>
+            <p className="mt-1 text-sm text-zinc-400">{cards.length} cards in this deck</p>
           </div>
         </div>
         
-        {/* Progress Bar */}
-        <div className="flex w-64 items-center gap-3">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-800">
-            <div className="h-full w-[28%] rounded-full bg-cyan-500"></div>
-          </div>
-          <span className="text-xs font-medium text-zinc-400">28%</span>
+        <div className="flex items-center gap-3">
+          {/* AI Flashcard Generator (Coming Soon) */}
+          <button 
+            disabled
+            className="flex items-center gap-2 rounded-xl border border-dashed border-white/10 bg-zinc-900/30 px-5 py-3 text-sm font-medium text-zinc-500 cursor-not-allowed transition-all"
+          >
+            <Sparkles size={18} className="opacity-50" />
+            Auto-Generate (Coming Soon)
+          </button>
+
+          {/* Study Button */}
+          {cards.length > 0 && (
+            <button 
+              onClick={() => setIsStudyModeOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-cyan-800/50 bg-cyan-950 px-5 py-3 text-sm font-semibold text-cyan-200 shadow-lg hover:bg-cyan-900 hover:scale-105 transition-all"
+            >
+              <Play size={18} />
+              Study
+            </button>
+          )}
+
+          {/* Add Card Button */}
+          <button 
+            onClick={handleAddCard}
+            className="flex items-center gap-2 rounded-xl bg-zinc-900 border border-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-zinc-800 hover:scale-105 transition-all"
+          >
+            <Plus size={18} />
+            Add Card
+          </button>
         </div>
       </header>
 
-      {/* Main Study Canvas */}
-      <div className="flex flex-1 flex-col items-center justify-center p-8">
-        
-        {/* The 3D Flipping Card Container */}
-        <div className="perspective-1000 relative h-96 w-full max-w-2xl">
-          <motion.div
-            className="absolute h-full w-full transform-style-3d cursor-pointer"
-            animate={{ rotateY: isFlipped ? 180 : 0 }}
-            transition={{ duration: 0.6, type: "spring", stiffness: 260, damping: 20 }}
-            onClick={() => setIsFlipped(!isFlipped)}
-          >
-            
-            {/* Front of Card (Question) */}
-            <div className="backface-hidden absolute flex h-full w-full flex-col items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 p-10 text-center shadow-2xl transition-colors hover:border-white/20">
-              <span className="absolute left-6 top-6 text-xs font-medium uppercase tracking-widest text-cyan-500">Question</span>
-              <h2 className="text-3xl font-medium leading-relaxed text-white">
-                What is the primary difference between a Primary Key and a Foreign Key?
-              </h2>
-              <div className="absolute bottom-6 flex items-center gap-2 text-sm text-zinc-500">
-                <RotateCw size={16} /> Click to flip
+      {/* Grid of Cards (Existing List View) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-20">
+        {cards.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-dashed border-white/10 p-12 text-center text-zinc-500">
+            This deck is empty. Add your first card to start studying!
+          </div>
+        ) : (
+          cards.map((card) => (
+            <div key={card.id} className="rounded-2xl border border-white/10 bg-zinc-900 p-6 flex flex-col gap-4 shadow-sm hover:border-white/20 transition-all">
+              <div className="border-b border-white/10 pb-4">
+                <span className="text-xs font-semibold uppercase tracking-wider text-cyan-500 mb-2 block">Front</span>
+                <p className="text-white text-lg">{card.front}</p>
+              </div>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2 block">Back</span>
+                <p className="text-zinc-300 leading-relaxed">{card.back}</p>
               </div>
             </div>
-
-            {/* Back of Card (Answer) */}
-            <div 
-              className="backface-hidden absolute flex h-full w-full flex-col items-center justify-center rounded-2xl border border-cyan-500/30 bg-zinc-900 p-10 text-center shadow-2xl"
-              style={{ transform: "rotateY(180deg)" }}
-            >
-              <span className="absolute left-6 top-6 text-xs font-medium uppercase tracking-widest text-emerald-500">Answer</span>
-              <p className="text-xl leading-relaxed text-zinc-300">
-                A <strong className="text-white">Primary Key</strong> uniquely identifies a record within its own table. 
-                <br /><br />
-                A <strong className="text-white">Foreign Key</strong> is a field in one table that links to the primary key of another table, establishing a relationship between the two.
-              </p>
-            </div>
-
-          </motion.div>
-        </div>
-
-        {/* Evaluation Buttons (Only show when flipped) */}
-        <AnimatePresence>
-          {isFlipped && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-12 flex gap-4"
-            >
-              <button className="group flex flex-col items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-4 transition-colors hover:bg-rose-500/20">
-                <div className="rounded-full bg-rose-500/20 p-2 text-rose-500 group-hover:bg-rose-500 group-hover:text-white transition-colors">
-                  <X size={20} />
-                </div>
-                <span className="text-sm font-medium text-rose-500">Needs Review</span>
-              </button>
-              
-              <button className="group flex flex-col items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-8 py-4 transition-colors hover:bg-emerald-500/20">
-                <div className="rounded-full bg-emerald-500/20 p-2 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
-                  <Check size={20} />
-                </div>
-                <span className="text-sm font-medium text-emerald-500">Got it</span>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
+          ))
+        )}
       </div>
+
+      {/* <-- CHANGE: Study Mode Overlay --> */}
+      {isStudyModeOpen && (
+        <StudyMode 
+          cards={cards} 
+          onClose={() => setIsStudyModeOpen(false)} 
+          deckName={deckName}
+        />
+      )}
+
     </div>
   );
 }

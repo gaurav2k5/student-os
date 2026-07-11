@@ -1,137 +1,118 @@
-import { BrainCircuit, Layers, Play, Plus, MoreHorizontal, CheckCircle2 } from "lucide-react";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { BrainCircuit, Plus, Layers, MoreVertical, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase"; // Make sure your path matches where you put supabase.ts
 
 export default function FlashcardsPage() {
+  const { user, isLoaded } = useUser();
+  const [decks, setDecks] = useState<any[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // 1. Fetch data from Supabase when the page loads
+  useEffect(() => {
+    async function loadDecks() {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("flashcards")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (!error && data) setDecks(data);
+    }
+    loadDecks();
+  }, [user]);
+
+  // 2. Create a new deck and push it to Supabase
+  const handleCreateDeck = async () => {
+    if (!user) return;
+    
+    const title = prompt("What do you want to study? (e.g., Database Normalization)");
+    if (!title) return;
+
+    setIsCreating(true);
+
+    const newDeck = {
+      user_id: user.id,
+      title: title,
+    };
+
+    const { data, error } = await supabase
+      .from("flashcards")
+      .insert([newDeck])
+      .select();
+
+    if (!error && data) {
+      // Instantly update the UI with the newly created deck
+      setDecks([data[0], ...decks]);
+    }
+    
+    setIsCreating(false);
+  };
+
+  if (!isLoaded) return <div className="p-8 text-zinc-400">Loading workspace...</div>;
+
   return (
-    <div className="flex h-full flex-col p-8 md:p-10">
-      <div className="mx-auto w-full max-w-5xl flex-1">
+    <div className="flex h-full flex-col relative overflow-y-auto p-8">
+      
+      <header className="mb-10 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+            <BrainCircuit className="text-cyan-500 h-8 w-8" />
+            Study Decks
+          </h1>
+          <p className="mt-2 text-zinc-400">Master your subjects with AI-generated flashcards.</p>
+        </div>
         
-        {/* Header */}
-        <header className="mb-10 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-white flex items-center gap-3">
-              <Layers className="text-cyan-500" />
-              Flashcards
-            </h1>
-            <p className="mt-2 text-zinc-400">Master your knowledge with AI-generated spaced repetition.</p>
-          </div>
-          <button className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-transform hover:scale-105 active:scale-95">
-            <Plus size={16} />
-            Create Deck
-          </button>
-        </header>
-
-        {/* AI Auto-Generation Banner */}
-        <div className="mb-10 flex items-center justify-between rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-cyan-950/40 to-transparent p-6 backdrop-blur-sm">
-          <div className="flex items-start gap-4">
-            <div className="mt-1 rounded-full bg-cyan-900/50 p-2 text-cyan-400">
-              <BrainCircuit size={20} />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">New notes detected!</h3>
-              <p className="mt-1 text-sm text-zinc-400">
-                The AI can automatically generate a flashcard deck from your "ESP32 & Microcontroller Pinouts" document.
-              </p>
-            </div>
-          </div>
-          <button className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-cyan-600">
-            Generate Deck
-          </button>
-        </div>
-
-        {/* Decks Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <button 
+          onClick={handleCreateDeck}
+          disabled={isCreating}
+          className="flex items-center gap-2 rounded-xl bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-cyan-500 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+        
+        >
+          {isCreating ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+          New Deck
           
-          {/* Deck Card 1 */}
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 p-6 transition-all hover:border-white/10 hover:bg-zinc-900/80">
-            <div className="mb-8 flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-white">Database Systems</h3>
-                <p className="text-sm text-zinc-500">42 cards</p>
-              </div>
-              <button className="text-zinc-500 hover:text-white transition-colors">
-                <MoreHorizontal size={20} />
-              </button>
-            </div>
-            
-            <div>
-              <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                <span className="text-zinc-400">Mastery</span>
-                <span className="text-emerald-400">78%</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                <div className="h-full w-[78%] rounded-full bg-emerald-500"></div>
+        </button>
+      </header>
+
+      {/* Dynamic Database Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {decks.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-dashed border-white/10 p-12 text-center text-zinc-500">
+            No study decks yet. Click "New Deck" to get started!
+          </div>
+        ) : (
+          decks.map((deck) => (
+            <div 
+              key={deck.id} 
+              onClick={() => window.location.href = `/flashcards/${deck.id}`} // <--- ADD THIS LINE
+              className="group relative flex flex-col justify-between rounded-2xl border border-white/10 bg-zinc-900/50 p-6 hover:border-cyan-500/50 hover:bg-zinc-900 transition-all cursor-pointer shadow-sm"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-800 text-cyan-400 group-hover:bg-cyan-950 group-hover:text-cyan-300 transition-colors">
+                  <Layers size={24} />
+                </div>
+                <button className="text-zinc-500 hover:text-white transition-colors">
+                  <MoreVertical size={20} />
+                </button>
               </div>
               
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10">
-                <Play size={16} className="fill-white" />
-                Study Due (12)
-              </button>
-            </div>
-          </div>
-
-          {/* Deck Card 2 */}
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/50 p-6 transition-all hover:border-white/10 hover:bg-zinc-900/80">
-            <div className="mb-8 flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-medium text-white">Graph Algorithms</h3>
-                <p className="text-sm text-zinc-500">28 cards</p>
+                <h3 className="text-xl font-semibold text-zinc-100 mb-1">{deck.title}</h3>
+                <div className="flex items-center gap-4 text-sm text-zinc-500">
+                  <span>0 cards</span> {/* We will hook this up later! */}
+                  <span>•</span>
+                  <span>Created just now</span>
+                </div>
               </div>
-              <button className="text-zinc-500 hover:text-white transition-colors">
-                <MoreHorizontal size={20} />
-              </button>
             </div>
-            
-            <div>
-              <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                <span className="text-zinc-400">Mastery</span>
-                <span className="text-rose-400">24%</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                <div className="h-full w-[24%] rounded-full bg-rose-500"></div>
-              </div>
-              
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/10">
-                <Play size={16} className="fill-white" />
-                Study Due (28)
-              </button>
-            </div>
-          </div>
-
-          {/* Deck Card 3 (Completed) */}
-          <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/5 bg-zinc-900/20 p-6 transition-all hover:border-white/10 hover:bg-zinc-900/40">
-            <div className="absolute -right-6 -top-6 text-emerald-500/10">
-              <CheckCircle2 size={120} />
-            </div>
-            <div className="relative z-10 mb-8 flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-medium text-white">Hardware Logic</h3>
-                <p className="text-sm text-zinc-500">15 cards</p>
-              </div>
-              <button className="text-zinc-500 hover:text-white transition-colors">
-                <MoreHorizontal size={20} />
-              </button>
-            </div>
-            
-            <div className="relative z-10">
-              <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                <span className="text-zinc-400">Mastery</span>
-                <span className="text-emerald-500">100%</span>
-              </div>
-              {/* Progress Bar */}
-              <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
-                <div className="h-full w-full rounded-full bg-emerald-500"></div>
-              </div>
-              
-              <button className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/5 bg-transparent py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-white/5 hover:text-white">
-                Review
-              </button>
-            </div>
-          </div>
-
-        </div>
+          ))
+        )}
       </div>
+
     </div>
   );
 }

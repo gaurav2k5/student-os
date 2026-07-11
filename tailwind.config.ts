@@ -1,16 +1,17 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
-  // Notice we are pointing directly to the app and components folders here
   content: [
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
 };
 
 export default config;

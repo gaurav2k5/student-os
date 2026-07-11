@@ -1,92 +1,147 @@
-import { Bot, Paperclip, Sparkles, User, ArrowUp } from "lucide-react";
+"use client";
+
+import { useChat } from "ai/react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, Send, User, Sparkles, Loader2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+
+// 1. We bring in our bulletproof Mermaid component for the chat!
+const MermaidDiagram = ({ chart }: { chart: string }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hasError, setHasError] = useState(false);
+  
+  useEffect(() => {
+    const renderDiagram = async () => {
+      if (ref.current && chart) {
+        try {
+          const mermaid = (await import("mermaid")).default;
+          mermaid.initialize({ theme: "dark", startOnLoad: false, suppressErrorRendering: true });
+          const id = `mermaid-chat-${Math.random().toString(36).substr(2, 9)}`;
+          const { svg } = await mermaid.render(id, chart);
+          if (ref.current) ref.current.innerHTML = svg;
+          setHasError(false);
+        } catch (error) {
+          setHasError(true);
+        }
+      }
+    };
+    renderDiagram();
+  }, [chart]);
+
+  if (hasError) {
+    return (
+      <div className="my-4 p-4 bg-red-950/30 border border-red-900/50 rounded-xl">
+        <p className="text-red-400 text-xs font-bold mb-2 uppercase tracking-wider">⚠️ Diagram Error</p>
+      </div>
+    );
+  }
+
+  return <div ref={ref} className="flex justify-center my-6 p-4 bg-zinc-950/80 border border-white/5 rounded-xl shadow-inner overflow-x-auto" />;
+};
 
 export default function ChatPage() {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to the newest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   return (
-    <div className="flex h-full flex-col relative">
+    <div className="flex h-full flex-col bg-[#0a0a0a]">
       
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-white/5 bg-zinc-950/80 px-8 py-6 backdrop-blur-md sticky top-0 z-10">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white flex items-center gap-3">
-            <Bot className="text-cyan-500" />
-            AI Tutor
-          </h1>
-          <p className="mt-1 text-sm text-zinc-400">Ask questions, generate quizzes, or prepare for interviews.</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-400">
-          <Sparkles size={14} />
-          GPT-4o Active
-        </div>
+      <header className="px-8 py-6 border-b border-white/10 bg-zinc-950/50">
+        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+          <Bot className="text-cyan-400" /> AI Tutor Chat
+        </h1>
+        <p className="text-sm text-zinc-400 mt-1">Ask questions, debug code, and explore complex topics.</p>
       </header>
 
-      {/* Chat History Canvas */}
-      <div className="flex-1 overflow-y-auto p-8 pb-32">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      {/* Chat Messages Area */}
+      <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
+        <div className="max-w-4xl mx-auto space-y-8 pb-10">
           
-          {/* User Message */}
-          <div className="flex gap-4 items-start">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-400">
-              <User size={18} />
+          {messages.length === 0 && (
+            <div className="text-center text-zinc-500 mt-20 flex flex-col items-center gap-4">
+              <Sparkles size={40} className="text-zinc-800" />
+              <p>Hello! I am your StudentOS AI Tutor. How can I help you today?</p>
             </div>
-            <div className="flex-1 space-y-2 mt-2">
-              <h3 className="text-sm font-medium text-zinc-300">You</h3>
-              <p className="text-white leading-relaxed">
-                Can you explain recursion to me in simple language? I'm having trouble understanding how it doesn't just loop forever.
-              </p>
-            </div>
-          </div>
+          )}
 
-          {/* AI Message */}
-          <div className="flex gap-4 items-start">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-900 text-cyan-400 shadow-[0_0_15px_-3px_rgba(8,145,178,0.4)]">
-              <Sparkles size={18} />
-            </div>
-            <div className="flex-1 space-y-2 mt-2">
-              <h3 className="text-sm font-medium text-cyan-400">StudentOS Tutor</h3>
-              <div className="text-zinc-300 leading-relaxed space-y-4">
-                <p>
-                  Think of recursion like a set of Russian nesting dolls. You open the biggest doll to find a smaller one inside, and you keep opening them until you finally reach the tiniest doll, which can't be opened anymore.
-                </p>
-                <p>
-                  In programming, recursion is simply a function that <strong>calls itself</strong>. But to prevent it from looping forever, it must have two vital parts:
-                </p>
-                <ul className="list-disc pl-5 space-y-2 text-zinc-400">
-                  <li><strong className="text-zinc-200">The Base Case:</strong> This is the tiniest doll. It's the condition that tells the function, "Stop calling yourself and just give me an answer."</li>
-                  <li><strong className="text-zinc-200">The Recursive Case:</strong> This is opening the next doll. The function does a little bit of work and then calls itself with a slightly smaller piece of the problem.</li>
-                </ul>
+          {messages.map((m) => (
+            <div key={m.id} className={`flex gap-4 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              
+              {/* AI Avatar */}
+              {m.role === "assistant" && (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-950 border border-cyan-900 mt-1">
+                  <Bot size={20} className="text-cyan-400" />
+                </div>
+              )}
+
+              {/* Message Bubble */}
+              <div 
+                className={`px-6 py-4 rounded-2xl max-w-[85%] ${
+                  m.role === "user" 
+                    ? "bg-cyan-600 text-white rounded-tr-sm" 
+                    : "bg-zinc-900 border border-white/10 text-zinc-300 rounded-tl-sm shadow-xl"
+                }`}
+              >
+                {m.role === "user" ? (
+                  <p className="whitespace-pre-wrap">{m.content}</p>
+                ) : (
+                  // Markdown & Diagram Renderer for AI Responses
+                  <div className="prose prose-invert prose-cyan max-w-none prose-p:leading-relaxed prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-white/10 text-base">
+                    <ReactMarkdown
+                      components={{
+                        code(props) {
+                          const { children, className, node, ...rest } = props;
+                          const match = /language-(\w+)/.exec(className || "");
+                          if (match && match[1] === "mermaid") {
+                            return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />;
+                          }
+                          return <code {...rest} className={`${className} bg-zinc-800 px-1.5 py-0.5 rounded-md`}>{children}</code>;
+                        },
+                      }}
+                    >
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
 
+              {/* User Avatar */}
+              {m.role === "user" && (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-800 border border-zinc-700 mt-1">
+                  <User size={20} className="text-zinc-400" />
+                </div>
+              )}
+
+            </div>
+          ))}
+          {/* Invisible div to scroll to */}
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Sticky Input Area */}
-      <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent pt-10 pb-8 px-8">
-        <div className="mx-auto max-w-3xl">
-          <div className="relative flex items-end overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 focus-within:border-cyan-500/50 focus-within:ring-1 focus-within:ring-cyan-500/50 shadow-2xl">
-            
-            <button className="flex h-14 w-12 shrink-0 items-center justify-center text-zinc-400 transition-colors hover:text-white">
-              <Paperclip size={20} />
-            </button>
-            
-            <textarea 
-              rows={1}
-              placeholder="Ask the tutor anything..."
-              className="max-h-32 min-h-[56px] w-full resize-none bg-transparent py-4 text-sm text-white placeholder-zinc-500 outline-none"
-            />
-            
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center">
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white transition-transform hover:scale-105 active:scale-95 shadow-[0_0_15px_-3px_rgba(8,145,178,0.5)]">
-                <ArrowUp size={16} />
-              </button>
-            </div>
-
-          </div>
-          <p className="mt-3 text-center text-xs text-zinc-600">
-            StudentOS AI can make mistakes. Verify important information before your exams.
-          </p>
-        </div>
+      {/* Input Area */}
+      <div className="p-6 bg-zinc-950 border-t border-white/10">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative flex items-center">
+          <input
+            value={input}
+            onChange={handleInputChange}
+            placeholder="Explain the flow of a fingerprint sensor to a database..."
+            className="w-full rounded-xl border border-white/10 bg-zinc-900 py-4 pl-6 pr-16 text-white placeholder:text-zinc-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all shadow-inner"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="absolute right-2 flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors disabled:opacity-50 disabled:hover:bg-cyan-600"
+          >
+            {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          </button>
+        </form>
       </div>
 
     </div>
